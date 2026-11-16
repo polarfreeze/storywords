@@ -1,4 +1,4 @@
-const CACHE = 'storywords-v1';
+const CACHE = 'storywords-v2';
 const ASSETS = ['./', './index.html', './style.css', './app.js', './stories.js', './icon.svg', './manifest.webmanifest'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
