@@ -14,4 +14,5 @@ html[data-theme="dark"]{--bg:#1c2722;--surface:#243129;--ink:#e1e5d8;--muted:#a1
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
 .word-token{line-height:1.45;vertical-align:baseline}.art-book span{font-size:28px;line-height:1.2}.art-book small{margin-top:11px}
 .continue-strip>span{display:flex;align-items:center;min-width:0}.continue-strip>span svg{width:17px;height:17px;flex-shrink:0}
+.notebook-collections{margin:0 0 18px}.word-card-close{width:28px;height:28px;padding:5px}.word-panel-actions button{white-space:nowrap}.word-panel-actions{flex-wrap:wrap}
 @media(max-width:490px){.art-book span{font-size:20px}.art-book small{font-size:4px;margin-top:6px}}

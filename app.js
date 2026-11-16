@@ -15,6 +15,11 @@
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const regexEsc = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const keyOf = word => word.toLowerCase().trim();
+  const wordIndex = new Map();
+  for (const story of stories) for (const [word,meaning] of story.words) {
+    const key=keyOf(word);
+    if(!wordIndex.has(key))wordIndex.set(key,{word,meaning,storyId:story.id});
+  }
   const num = n => Number(n).toLocaleString('en-US');
   const pad = n => String(n).padStart(2, '0');
   const paths = {
@@ -90,7 +95,7 @@
   }
   function searchBox(id,placeholder,value='') { return `<label class="search-box">${icon('search')}<input id="${id}" type="search" placeholder="${placeholder}" aria-label="${placeholder}" value="${esc(value)}" autocomplete="off"></label>`; }
   const palettes=[['#e8ecdf','#718263'],['#ece7df','#9a8065'],['#e4eae5','#729083'],['#eae5e6','#927580'],['#e7e8dc','#8b8d67'],['#e3e8eb','#758693']];
-  let filter='all',query='',page=1,notebookQuery='',notebookPage=1,hideNotebookMeanings=false;
+  let filter='all',query='',page=1,notebookQuery='',notebookPage=1,notebookView='saved',hideNotebookMeanings=false;
   function storyCard(s) {
     const progress=state.progress[s.id]; const palette=palettes[Math.floor((s.id-1)/10)%palettes.length];
     return `<a class="story-card" href="#story/${s.id}" aria-label="阅读第 ${s.id} 篇：${esc(s.title)}" style="--card-bg:${palette[0]};--card-ink:${palette[1]}">
@@ -128,7 +133,7 @@
     main.innerHTML=`<div class="reader-page"><div class="reader-breadcrumb"><a href="#library">${icon('left')} 故事书架</a><span>/</span><span>STORY ${pad(s.id)}</span></div>
       <div class="reader-toolbar"><div class="mode-switch" role="group" aria-label="阅读模式">${[['learn','学习'],['review','复习'],['read','阅读']].map(([v,l])=>`<button data-action="mode" data-mode="${v}" class="${mode===v?'active':''}" aria-pressed="${mode===v}">${l}模式</button>`).join('')}</div><div class="reader-tools"><div class="font-control"><button data-action="font" data-delta="-1" aria-label="缩小字号">A−</button><span id="fontSize">${state.settings.font}</span><button data-action="font" data-delta="1" aria-label="放大字号">A+</button></div><select id="storySelect" aria-label="切换故事">${stories.map(x=>`<option value="${x.id}" ${x.id===s.id?'selected':''}>${pad(x.id)} · ${esc(x.title)}</option>`).join('')}</select></div></div>
       <div class="reader-layout"><article class="reading-paper" data-mode="${mode}"><header class="story-heading"><span class="eyebrow">STORY ${pad(s.id)} / 100</span><h1>${esc(s.title)}</h1><div class="story-meta"><span>${s.words.length} 个重点词</span><span>约 ${s.minutes} 分钟</span><span id="readStatus">${state.progress[s.id].done?'已读完':'阅读中'}</span></div></header><p class="mode-hint" id="modeHint">${modeHint(mode)}</p><div class="story-text">${s.paragraphs.map((p,i)=>`<p class="story-paragraph" id="paragraph-${i}" data-paragraph="${i}">${paragraphHTML(s,p)}</p>`).join('')}</div><p class="story-credit">故事原文 · ${esc(s.credit)}</p><div class="story-end"><span class="muted" style="font-size:11px">每读完一篇，都有新的收获。</span><button class="primary" data-action="complete">${icon('check')} ${state.progress[s.id].done?'已读完 · 点击标为未读':'标记为已读完'}</button></div><nav class="next-story" aria-label="相邻故事">${s.id>1?`<a href="#story/${s.id-1}">${icon('left')} ${esc(byId.get(s.id-1).title)}</a>`:'<span></span>'}${s.id<100?`<a href="#story/${s.id+1}">${esc(byId.get(s.id+1).title)} ${icon('arrow')}</a>`:'<a href="#library">回到书架 '+icon('arrow')+'</a>'}</nav></article>
-      <aside class="reader-sidebar" aria-label="单词学习工具"><section class="side-box" id="wordPanel"><div class="side-heading">随读词卡<button class="icon-button mobile-word-close" data-action="close-word" aria-label="关闭词卡">${icon('close')}</button></div><div class="empty-word-panel"><p class="selected-word">A word,<br>a new world.</p><p class="word-panel-caption">点击正文里的英文单词，<br>查看释义、听发音，或收入生词本。</p></div></section>
+      <aside class="reader-sidebar" aria-label="单词学习工具"><section class="side-box" id="wordPanel">${emptyWordPanel()}</section>
       <section class="side-box glossary-box"><div class="side-heading">本篇词汇<span>${s.words.length} words</span></div><input id="wordFilter" class="word-filter" type="search" placeholder="查找本篇单词" aria-label="查找本篇单词"><div id="wordList" class="word-list">${glossaryHTML(s)}</div></section><section class="side-box reader-summary"><span id="paragraphProgress">阅读位置</span><div class="progress-track"><i id="paragraphBar" style="width:0%"></i></div>点击「标记为已读完」记录完成。<br>进度与生词自动保存在当前浏览器。</section></aside></div></div>`;
     const version=routeVersion;
     requestAnimationFrame(()=>{
@@ -145,32 +150,46 @@
       }
     });
   }
-  function modeHint(mode){return {learn:'学习模式：释义随文展示。点击英文单词，听发音或加入生词本。',review:'复习模式：释义已隐藏。先回忆词义，再点击单词揭晓答案。',read:'阅读模式：收起释义，沉浸阅读。遇到不熟悉的英文，仍可点击查看词卡。'}[mode];}
+  function modeHint(mode){return {learn:'学习模式：释义随文展示。点击英文单词，听发音或加入生词本。',review:'复习模式：点击单词查看释义，再点一次、关闭词卡或按 Esc 即可收起；查看下一个词时自动隐藏上一个。',read:'阅读模式：收起释义，沉浸阅读。遇到不熟悉的英文，仍可点击查看词卡。'}[mode];}
   function paragraphHTML(s,text){return tokenize(s,text).map(t=>t.word?`<button class="word-token${state.saved[t.key]?' saved':''}${selectedKey===t.key?' selected':''}${revealed.has(t.key)?' revealed':''}" data-action="word" data-word="${esc(t.word)}" data-meaning="${esc(t.meaning)}" aria-label="${esc(t.word)}，查看词卡"><span>${esc(t.word)}</span><span class="inline-meaning">${esc(t.meaning)}</span></button>`:esc(t.text)).join('');}
   function glossaryHTML(s,needle=''){return s.words.filter(w=>w[0].toLowerCase().includes(needle.toLowerCase())||w[1].includes(needle)).map(w=>`<button class="word-list-item${selectedKey===keyOf(w[0])?' active':''}" data-action="word" data-word="${esc(w[0])}" data-meaning="${esc(w[1])}"><strong>${esc(w[0])}</strong><small>${state.settings.mode==='learn'?esc(w[1]):'点击查看'}</small></button>`).join('')||'<p class="muted" style="font-size:11px">没有找到这个单词</p>';}
   function selectWord(word,meaning){
-    selectedKey=keyOf(word);revealed.add(selectedKey);
-    $$('.word-token').forEach(el=>{const yes=keyOf(el.dataset.word)===selectedKey;el.classList.toggle('selected',yes);if(yes)el.classList.add('revealed');});
+    const key=keyOf(word);
+    if(state.settings.mode==='review' && selectedKey===key && revealed.has(key)){closeWord();return;}
+    selectedKey=key;revealed.clear();revealed.add(key);
+    $$('.word-token').forEach(el=>{const yes=keyOf(el.dataset.word)===selectedKey;el.classList.toggle('selected',yes);el.classList.toggle('revealed',yes);});
     renderWordPanel(word,meaning);$('.reader-sidebar').classList.add('mobile-open');
     $$('.word-list-item').forEach(el=>el.classList.toggle('active',keyOf(el.dataset.word)===selectedKey));
   }
+  function emptyWordPanel(){return `<div class="side-heading">随读词卡</div><div class="empty-word-panel"><p class="selected-word">A word,<br>a new world.</p><p class="word-panel-caption">${state.settings.mode==='review'?'先回忆，再点一个英文单词查看释义。<br>再次点击、关闭词卡或按 Esc 收起。':'点击正文里的英文单词，<br>查看释义、听发音，或收入生词本。'}</p></div>`;}
+  function closeWord(){
+    selectedKey='';revealed.clear();
+    $$('.word-token').forEach(el=>el.classList.remove('selected','revealed'));
+    $$('.word-list-item').forEach(el=>el.classList.remove('active'));
+    $('#wordPanel').innerHTML=emptyWordPanel();
+    $('.reader-sidebar').classList.remove('mobile-open');
+  }
   function renderWordPanel(word,meaning){
     const saved=!!state.saved[keyOf(word)],known=state.mastered.includes(keyOf(word));
-    $('#wordPanel').innerHTML=`<div class="side-heading">随读词卡<button class="icon-button mobile-word-close" data-action="close-word" aria-label="关闭词卡">${icon('close')}</button></div><h2 class="selected-word">${esc(word)}</h2><button class="word-pronounce" data-action="speak" data-word="${esc(word)}">${icon('volume')} 听单词发音</button><p class="word-meaning">${esc(meaning)}</p><div class="word-panel-actions"><button class="primary" data-action="save-word" data-word="${esc(word)}" data-meaning="${esc(meaning)}">${icon(saved?'check':'bookmark')} ${saved?'已加入生词本':'加入生词本'}</button><button data-action="know-word" data-word="${esc(word)}" ${known?'disabled':''}>${known?'已掌握':'我认识'}</button></div><p class="word-panel-caption">${known?'已标记为掌握。仍可加入生词本，再复习一次。':saved?'已收藏。你可以在「生词本」中结合原文复习。':'先放进故事里记，再带到生词本里复习。'}</p>`;
+    $('#wordPanel').innerHTML=`<div class="side-heading">随读词卡<button class="icon-button word-card-close" data-action="close-word" aria-label="关闭词卡">${icon('close')}</button></div><h2 class="selected-word">${esc(word)}</h2><button class="word-pronounce" data-action="speak" data-word="${esc(word)}">${icon('volume')} 听单词发音</button><p class="word-meaning">${esc(meaning)}</p><div class="word-panel-actions"><button class="primary" data-action="save-word" data-word="${esc(word)}" data-meaning="${esc(meaning)}">${icon(saved?'check':'bookmark')} ${saved?'已加入生词本':'加入生词本'}</button><button data-action="know-word" data-word="${esc(word)}" aria-pressed="${known}">${known?'已掌握 · 取消':'我认识'}</button></div><p class="word-panel-caption">${known?'已标记为掌握，再次点击可恢复未标记。':saved?'已收藏。你可以在「生词本」中结合原文复习。':'先放进故事里记，再带到生词本里复习。'}</p>`;
   }
   function addSaved(word,meaning,storyId){const key=keyOf(word);state.saved[key]={word,meaning,storyId,addedAt:Date.now()};state.mastered=state.mastered.filter(w=>w!==key);save();}
   function markKnown(word){const key=keyOf(word);delete state.saved[key];if(!state.mastered.includes(key))state.mastered.push(key);save();}
+  function unmarkKnown(word){const key=keyOf(word);state.mastered=state.mastered.filter(w=>w!==key);save();}
+  function notebookTabs(){return [['saved','生词本',Object.keys(state.saved).length],['mastered','已掌握',state.mastered.length]].map(([value,label,count])=>`<button data-action="notebook-view" data-view="${value}" class="${notebookView===value?'active':''}" aria-pressed="${notebookView===value}">${label}<small>${count}</small></button>`).join('');}
   function notebook(){
     document.title='我的生词本 · 词境';
-    main.innerHTML=`<div class="page"><div class="page-heading"><div><span class="eyebrow">MY WORD COLLECTION</span><h1>慢慢，把生词变熟。</h1><p>从故事里收集的每一个词，都带着它原来的语境。</p></div><button class="button primary" data-action="review-saved" ${Object.keys(state.saved).length?'':'disabled'}>${icon('target')} 开始词卡复习</button></div><div class="notebook-toolbar">${searchBox('notebookSearch','搜索生词或释义',notebookQuery)}<div class="notebook-actions"><span id="notebookCount" class="muted" style="font-size:11px"></span><button data-action="hide-meanings">${hideNotebookMeanings?'显示所有释义':'隐藏所有释义'}</button></div></div><div id="notebookResults"></div><p class="notebook-note">点击「已掌握」将单词移出生词本；点击故事名返回原文。学习记录保存在当前浏览器，建议定期到「学习记录」导出备份。</p></div>`;notebookResults();
+    main.innerHTML=`<div class="page"><div class="page-heading"><div><span class="eyebrow">MY WORD COLLECTION</span><h1>慢慢，把生词变熟。</h1><p>从故事里收集的每一个词，都带着它原来的语境。</p></div><button class="button primary" data-action="review-saved" ${Object.keys(state.saved).length?'':'disabled'}>${icon('target')} 开始词卡复习</button></div><div class="tabs notebook-collections" id="notebookTabs" role="group" aria-label="词汇状态">${notebookTabs()}</div><div class="notebook-toolbar">${searchBox('notebookSearch','搜索单词或释义',notebookQuery)}<div class="notebook-actions"><span id="notebookCount" class="muted" style="font-size:11px"></span><button data-action="hide-meanings">${hideNotebookMeanings?'显示所有释义':'隐藏所有释义'}</button></div></div><div id="notebookResults"></div><p class="notebook-note">「已掌握」列表可以取消掌握状态，恢复为未标记；需要再次复习时，可回到原文加入生词本。学习记录保存在当前浏览器，建议定期导出备份。</p></div>`;notebookResults();
   }
   function notebookResults(){
     const needle=notebookQuery.trim().toLowerCase();
-    const all=Object.values(state.saved).sort((a,b)=>b.addedAt-a.addedAt);
+    const mastered=notebookView==='mastered';
+    const all=mastered?[...state.mastered].reverse().map(key=>wordIndex.get(key)).filter(Boolean):Object.values(state.saved).sort((a,b)=>b.addedAt-a.addedAt);
     const entries=all.filter(w=>w.word.toLowerCase().includes(needle)||w.meaning.includes(needle));
-    $('#notebookCount').textContent=`${entries.length} 个生词`;
+    $('#notebookCount').textContent=`${entries.length} 个${mastered?'已掌握词汇':'生词'}`;
+    $('#notebookTabs').innerHTML=notebookTabs();
     const total=Math.max(1,Math.ceil(entries.length/30));notebookPage=Math.min(notebookPage,total);
-    $('#notebookResults').innerHTML=entries.length?`<table class="vocab-table"><thead><tr><th>英文单词</th><th>中文释义</th><th class="source-col">来自故事</th><th style="text-align:right">学习操作</th></tr></thead><tbody>${entries.slice((notebookPage-1)*30,notebookPage*30).map(w=>`<tr><td><div class="table-word">${esc(w.word)}</div></td><td class="meaning-col">${hideNotebookMeanings?`<button class="hidden-meaning" data-action="reveal-table" data-meaning="${esc(w.meaning)}">点击揭晓</button>`:esc(w.meaning)}</td><td class="source-col"><a class="table-source" href="#story/${w.storyId}">${pad(w.storyId)} · ${esc(byId.get(w.storyId).title)}</a></td><td><div class="table-action"><button class="icon-button" data-action="speak" data-word="${esc(w.word)}" aria-label="朗读 ${esc(w.word)}">${icon('volume')}</button><a class="icon-button" href="#story/${w.storyId}" aria-label="返回单词所在的故事">${icon('book')}</a><button data-action="know-saved" data-word="${esc(w.word)}">${icon('check')} 已掌握</button></div></td></tr>`).join('')}</tbody></table>${pagination(notebookPage,total,'notebook')}`:`<div class="empty-state">${icon('bookmark')}<h2>${needle?'没有找到这个生词':'留一个位置，给新遇见的词。'}</h2><p>${needle?'换一个英文单词或中文释义试试。':'阅读时点击英文单词，再点「加入生词本」，就可以在这里复习。'}</p><a class="button primary" href="#library">去读一个故事 ${icon('arrow')}</a></div>`;
+    $('#notebookResults').innerHTML=entries.length?`<table class="vocab-table"><thead><tr><th>英文单词</th><th>中文释义</th><th class="source-col">${mastered?'参考故事':'来自故事'}</th><th style="text-align:right">学习操作</th></tr></thead><tbody>${entries.slice((notebookPage-1)*30,notebookPage*30).map(w=>`<tr><td><div class="table-word">${esc(w.word)}</div></td><td class="meaning-col">${hideNotebookMeanings?`<button class="hidden-meaning" data-action="reveal-table" data-meaning="${esc(w.meaning)}">点击揭晓</button>`:esc(w.meaning)}</td><td class="source-col"><a class="table-source" href="#story/${w.storyId}">${pad(w.storyId)} · ${esc(byId.get(w.storyId).title)}</a></td><td><div class="table-action"><button class="icon-button" data-action="speak" data-word="${esc(w.word)}" aria-label="朗读 ${esc(w.word)}">${icon('volume')}</button><a class="icon-button" href="#story/${w.storyId}" aria-label="返回单词所在的故事">${icon('book')}</a><button data-action="${mastered?'unmark-saved':'know-saved'}" data-word="${esc(w.word)}">${icon(mastered?'left':'check')} ${mastered?'取消已掌握':'已掌握'}</button></div></td></tr>`).join('')}</tbody></table>${pagination(notebookPage,total,'notebook')}`:`<div class="empty-state">${icon(mastered?'check':'bookmark')}<h2>${needle?'没有找到这个单词':mastered?'还没有标记为掌握的词':'留一个位置，给新遇见的词。'}</h2><p>${needle?'换一个英文单词或中文释义试试。':mastered?'在词卡或生词复习中标记「我认识」后，可以在这里查看和取消。':'阅读时点击英文单词，再点「加入生词本」，就可以在这里复习。'}</p><a class="button primary" href="#library">去读一个故事 ${icon('arrow')}</a></div>`;
   }
   function progress(){
     document.title='学习记录 · 词境';
@@ -235,19 +254,21 @@
     else if(action==='library-page'){page=Number(el.dataset.page);libraryResults();$('#libraryTitle').scrollIntoView({block:'start'});}
     else if(action==='notebook-page'){notebookPage=Number(el.dataset.page);notebookResults();window.scrollTo({top:0,behavior:'instant'});}
     else if(action==='word')selectWord(el.dataset.word,el.dataset.meaning);
-    else if(action==='close-word')$('.reader-sidebar').classList.remove('mobile-open');
+    else if(action==='close-word')closeWord();
     else if(action==='save-word'){const word=el.dataset.word,key=keyOf(word);if(state.saved[key]){delete state.saved[key];toast('已从生词本移除');}else{addSaved(word,el.dataset.meaning,currentStory.id);toast('已收入生词本');}save();renderWordPanel(word,el.dataset.meaning);$$('.word-token').filter(b=>keyOf(b.dataset.word)===key).forEach(b=>b.classList.toggle('saved',!!state.saved[key]));}
-    else if(action==='know-word'){markKnown(el.dataset.word);toast('已标记为掌握');const meaning=currentStory.words.find(w=>keyOf(w[0])===keyOf(el.dataset.word))?.[1]||'';renderWordPanel(el.dataset.word,meaning);$$('.word-token').filter(b=>keyOf(b.dataset.word)===keyOf(el.dataset.word)).forEach(b=>b.classList.remove('saved'));}
+    else if(action==='know-word'){const word=el.dataset.word;if(state.mastered.includes(keyOf(word))){unmarkKnown(word);toast('已取消掌握，恢复为未标记');}else{markKnown(word);toast('已标记为掌握');}const meaning=currentStory.words.find(w=>keyOf(w[0])===keyOf(word))?.[1]||'';renderWordPanel(word,meaning);$$('.word-token').filter(b=>keyOf(b.dataset.word)===keyOf(word)).forEach(b=>b.classList.remove('saved'));}
     else if(action==='speak')speak(el.dataset.word);
     else if(action==='mode'){
       state.settings.mode=el.dataset.mode;save();$('.reading-paper').dataset.mode=state.settings.mode;$('#modeHint').textContent=modeHint(state.settings.mode);
       $$('.mode-switch button').forEach(b=>{b.classList.toggle('active',b.dataset.mode===state.settings.mode);b.setAttribute('aria-pressed',b.dataset.mode===state.settings.mode);});
       $('#wordList').innerHTML=glossaryHTML(currentStory,$('#wordFilter').value);
-      if(state.settings.mode==='review'){revealed.clear();$$('.word-token').forEach(b=>b.classList.remove('revealed','selected'));selectedKey='';$('#wordPanel').innerHTML='<div class="side-heading">随读词卡</div><p class="word-panel-caption">先试着回忆，再点一个英文单词揭晓释义。</p>';$('.reader-sidebar').classList.remove('mobile-open');}
+      closeWord();
     }
     else if(action==='font'){state.settings.font=Math.min(25,Math.max(16,state.settings.font+Number(el.dataset.delta)));applySettings();save();$('#fontSize').textContent=state.settings.font;}
     else if(action==='complete'){const p=state.progress[currentStory.id];p.done=!p.done;save();el.innerHTML=icon('check')+' '+(p.done?'已读完 · 点击标为未读':'标记为已读完');$('#readStatus').textContent=p.done?'已读完':'阅读中';toast(p.done?'这一篇读完了，收获留在故事里。':'已标为未读完');}
     else if(action==='know-saved'){markKnown(el.dataset.word);notebookResults();toast('已移出复习列表，计入掌握记录');const reviewButton=$('[data-action="review-saved"]');if(reviewButton)reviewButton.disabled=!Object.keys(state.saved).length;}
+    else if(action==='unmark-saved'){unmarkKnown(el.dataset.word);notebookResults();toast('已取消掌握，恢复为未标记');}
+    else if(action==='notebook-view'){notebookView=el.dataset.view;notebookPage=1;notebookResults();}
     else if(action==='hide-meanings'){hideNotebookMeanings=!hideNotebookMeanings;el.textContent=hideNotebookMeanings?'显示所有释义':'隐藏所有释义';notebookResults();}
     else if(action==='reveal-table'){const span=document.createElement('span');span.textContent=el.dataset.meaning;el.replaceWith(span);}
     else if(action==='review-saved')startReview();
@@ -263,6 +284,7 @@
   document.addEventListener('input',e=>{if(e.target.id==='storySearch'){query=e.target.value;page=1;libraryResults();}else if(e.target.id==='wordFilter')$('#wordList').innerHTML=glossaryHTML(currentStory,e.target.value);else if(e.target.id==='notebookSearch'){notebookQuery=e.target.value;notebookPage=1;notebookResults();}});
   document.addEventListener('change',e=>{if(e.target.id==='storySelect')location.hash='story/'+e.target.value;});
   document.addEventListener('keydown',e=>{
+    if(e.key==='Escape' && !$('#reviewDialog').open && currentStory && selectedKey){closeWord();return;}
     if(!$('#reviewDialog').open||!review)return;
     if(e.code==='Space' && !['BUTTON','INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName) && review.index<review.entries.length){e.preventDefault();review.revealed=true;renderReview();}
     if(e.code==='ArrowLeft'&&review.revealed){e.preventDefault();answerReview(false);}
