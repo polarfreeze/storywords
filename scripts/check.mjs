@@ -32,6 +32,6 @@ assert.equal(entries, data.totalEntries);
 assert.equal(entries, 8675);
 assert.equal(occurrences, 10367);
 const html = fs.readFileSync(path.join(site,'index.html'),'utf8');
-for(const match of html.matchAll(/(?:src|href)="\.\/([^"#]+)"/g))assert.ok(fs.existsSync(path.join(site,match[1])),`Missing asset ${match[1]}`);
+for(const match of html.matchAll(/(?:src|href)="\.\/([^"#]+)"/g))assert.ok(fs.existsSync(path.join(site,match[1].split('?')[0])),`Missing asset ${match[1]}`);
 for(const name of ['app.js','sw.js'])new vm.Script(fs.readFileSync(path.join(site,name),'utf8'),{filename:name});
 console.log(JSON.stringify({status:'passed',stories:100,paragraphs:data.stories.reduce((n,s)=>n+s.paragraphs.length,0),vocabularyEntries:entries,uniqueWords:unique.size,wordOccurrences:occurrences}));
