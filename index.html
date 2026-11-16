@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#214d3c">
+  <meta name="description" content="词境：100 个故事，在语境中学习英语单词。支持隐藏释义复习、生词本、发音与本地阅读进度。">
+  <title>词境 · 让单词有故事可讲</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./stories.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="site-header">
+    <a class="brand" href="#library" aria-label="词境首页"><span class="brand-symbol" aria-hidden="true">词</span><span>词境<small>WORDS IN STORIES</small></span></a>
+    <nav class="main-nav" aria-label="主导航">
+      <a href="#library" data-nav="library">故事书架</a>
+      <a href="#notebook" data-nav="notebook">生词本<span id="savedBadge" class="nav-badge" hidden>0</span></a>
+      <a href="#progress" data-nav="progress">学习记录</a>
+    </nav>
+    <div class="header-tools"><span class="save-status" title="学习记录保存在当前浏览器，可以在学习记录中导出备份。"><i></i>本地保存</span><button id="themeToggle" class="icon-button" aria-label="切换深色模式" title="切换深色模式"></button></div>
+  </header>
+  <main id="main" tabindex="-1"><div class="initial-loading">正在打开故事书架…</div></main>
+  <footer class="site-footer"><span class="footer-brand">词境 <span> / </span> 在故事里，遇见下一个单词。</span><span>故事与原始词表：书豪团队原创 · 网页整理用于英语学习</span></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="reviewDialog" class="review-dialog" aria-labelledby="reviewTitle"></dialog>
+  <dialog id="importDialog" class="import-dialog" aria-labelledby="importTitle"></dialog>
+  <input id="importFile" type="file" accept="application/json,.json" hidden>
+  <noscript>请启用 JavaScript，以阅读故事并保存学习进度。</noscript>
+</body>
+</html>

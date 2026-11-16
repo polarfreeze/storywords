@@ -1,0 +1,6 @@
+qa/
+qa-runtime/
+__pycache__/
+*.pyc
+storywords-backup-*.json
+node_modules/
